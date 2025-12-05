@@ -15,6 +15,7 @@ import kth.library.model.SearchMode;
 
 import java.sql.Date;
 import java.util.List;
+import java.util.Optional;
 
 
 /**
@@ -33,6 +34,8 @@ public class BooksPane extends VBox {
     private Button searchButton;
 
     private MenuBar menuBar;
+    
+    private MenuItem updateItem; // Need access to disable/enable or handle
 
     public BooksPane(IBooksDb booksDb) {
         final Controller controller = new Controller(booksDb, this);
@@ -93,8 +96,10 @@ public class BooksPane extends VBox {
         // define columns
         TableColumn<Book, String> titleCol = new TableColumn<>("Title");
         TableColumn<Book, String> isbnCol = new TableColumn<>("ISBN");
-        TableColumn<Book, Date> publishedCol = new TableColumn<>("Published");
-        booksTable.getColumns().addAll(titleCol, isbnCol, publishedCol);
+        TableColumn<Book, String> publisherCol = new TableColumn<>("Publisher");
+        TableColumn<Book, Integer> ratingCol = new TableColumn<>("Rating"); // Added Rating column
+        
+        booksTable.getColumns().addAll(titleCol, isbnCol, publisherCol, ratingCol);
         // give title column some extra space
         titleCol.prefWidthProperty().bind(booksTable.widthProperty().multiply(0.5));
 
@@ -102,7 +107,8 @@ public class BooksPane extends VBox {
         // get values from Book properties
         titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
         isbnCol.setCellValueFactory(new PropertyValueFactory<>("isbn"));
-        publishedCol.setCellValueFactory(new PropertyValueFactory<>("published"));
+        publisherCol.setCellValueFactory(new PropertyValueFactory<>("publisher"));
+        ratingCol.setCellValueFactory(new PropertyValueFactory<>("rating"));
 
         // associate the table view with the data
         booksTable.setItems(booksInTable);
@@ -131,22 +137,84 @@ public class BooksPane extends VBox {
         MenuItem connectItem = new MenuItem("Connect to Db");
         MenuItem disconnectItem = new MenuItem("Disconnect");
         fileMenu.getItems().addAll(exitItem, connectItem, disconnectItem);
+        
+        exitItem.setOnAction(e -> System.exit(0));
 
         Menu searchMenu = new Menu("Search");
         MenuItem titleItem = new MenuItem("Title");
         MenuItem isbnItem = new MenuItem("ISBN");
         MenuItem authorItem = new MenuItem("Author");
-        searchMenu.getItems().addAll(titleItem, isbnItem, authorItem);
+        MenuItem genreItem = new MenuItem("Genre");
+        MenuItem ratingItem = new MenuItem("Rating");
+        searchMenu.getItems().addAll(titleItem, isbnItem, authorItem, genreItem, ratingItem);
+        
+        // Bind menu items to change the combo box selection
+        titleItem.setOnAction(e -> searchModeBox.setValue(SearchMode.Title));
+        isbnItem.setOnAction(e -> searchModeBox.setValue(SearchMode.ISBN));
+        authorItem.setOnAction(e -> searchModeBox.setValue(SearchMode.Author));
+        genreItem.setOnAction(e -> searchModeBox.setValue(SearchMode.Genre));
+        ratingItem.setOnAction(e -> searchModeBox.setValue(SearchMode.Rating));
 
         Menu manageMenu = new Menu("Manage");
         MenuItem addItem = new MenuItem("Add");
         MenuItem removeItem = new MenuItem("Remove");
-        MenuItem updateItem = new MenuItem("Update");
-        manageMenu.getItems().addAll(addItem, removeItem, updateItem);
+        MenuItem updateItem = new MenuItem("Update Rating");
+        MenuItem detailsItem = new MenuItem("Show Details"); // Requirement D
+        manageMenu.getItems().addAll(addItem, removeItem, updateItem, new SeparatorMenuItem(), detailsItem);
+        this.updateItem = updateItem;
 
         menuBar = new MenuBar();
         menuBar.getMenus().addAll(fileMenu, searchMenu, manageMenu);
 
-        // TODO: add event handlers ...
+        // Event handlers
+        updateItem.setOnAction(e -> {
+            Book selected = booksTable.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                controller.onRateBookSelected(selected);
+            } else {
+                showAlertAndWait("No book selected", Alert.AlertType.WARNING);
+            }
+        });
+        
+        detailsItem.setOnAction(e -> {
+            Book selected = booksTable.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                // Show details about authors and genres
+                StringBuilder sb = new StringBuilder();
+                sb.append("Title: ").append(selected.getTitle()).append("\n");
+                sb.append("ISBN: ").append(selected.getIsbn()).append("\n");
+                sb.append("Publisher: ").append(selected.getPublisher()).append("\n\n");
+                
+                sb.append("Authors:\n");
+                if (selected.getAuthors().isEmpty()) {
+                    sb.append(" - (None listed)\n");
+                } else {
+                    for (kth.library.model.Author a : selected.getAuthors()) {
+                        sb.append(" - ").append(a.getName()).append("\n");
+                    }
+                }
+                
+                sb.append("\nGenres:\n");
+                if (selected.getGenres().isEmpty()) {
+                    sb.append(" - (None listed)\n");
+                } else {
+                    for (kth.library.model.Genre g : selected.getGenres()) {
+                        sb.append(" - ").append(g.getName()).append("\n");
+                    }
+                }
+                
+                showAlertAndWait(sb.toString(), Alert.AlertType.INFORMATION);
+            } else {
+                showAlertAndWait("No book selected", Alert.AlertType.WARNING);
+            }
+        });
+        
+        addItem.setOnAction(e -> {
+            controller.onAddBookSelected();
+        });
+    }
+    
+    public Book getSelectedBook() {
+        return booksTable.getSelectionModel().getSelectedItem();
     }
 }

@@ -5,7 +5,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import kth.library.model.IBooksDb;
-import kth.library.model.IBooksDbMockImpl;
+import kth.library.model.BooksDbImpl;
 import kth.library.view.BooksPane;
 
 import java.io.IOException;
@@ -13,9 +13,16 @@ import java.io.IOException;
 public class Main extends Application {
     @Override
     public void start(Stage primaryStage) throws IOException {
-        IBooksDb booksDb = new IBooksDbMockImpl(); // model
+        IBooksDb booksDb = new BooksDbImpl(); // model
         BooksPane booksPane = new BooksPane(booksDb); // also creates a controller
-        // Don't forget to connect to the db, somewhere...
+
+        // Connect to the db
+        try {
+            booksDb.connect("jdbc:mysql://localhost:3306/LibraryDB");
+        } catch (Exception e) {
+            System.err.println("Failed to connect to database: " + e.getMessage());
+            // Usually show an alert here, but for now console is fine
+        }
 
         Scene scene = new Scene(booksPane, 800, 600);
         primaryStage.setTitle("Books Database Client");

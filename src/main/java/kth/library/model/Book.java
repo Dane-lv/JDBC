@@ -1,32 +1,34 @@
 package kth.library.model;
 
-import java.sql.Date;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Representation of a book.
- *
- * @author anderslm@kth.se
  */
 public class Book {
 
     private final int bookId;
-    private final String isbn; // should check format
+    private final String isbn;
     private final String title;
-    private final Date published;
-    private final String storyLine = "";
-    // TODO: 
-    // Add authors, as a separate class(!), and corresponding methods, to your implementation
-    // as well, i.e. "private ArrayList<Author> authors;"
+    private final String publisher;
+    private final Integer rating; // Nullable in DB
+    
+    private final List<Author> authors;
+    private final List<Genre> genres;
 
-    public Book(int bookId, String isbn, String title, Date published) {
+    public Book(int bookId, String isbn, String title, String publisher, Integer rating) {
         this.bookId = bookId;
         this.isbn = isbn;
         this.title = title;
-        this.published = published;
+        this.publisher = publisher;
+        this.rating = rating;
+        this.authors = new ArrayList<>();
+        this.genres = new ArrayList<>();
     }
 
-    public Book(String isbn, String title, Date published) {
-        this(-1, isbn, title, published);
+    public Book(String isbn, String title, String publisher, Integer rating) {
+        this(-1, isbn, title, publisher, rating);
     }
 
     public int getBookId() {
@@ -41,16 +43,46 @@ public class Book {
         return title;
     }
 
-    public Date getPublished() {
-        return published;
+    public String getPublisher() {
+        return publisher;
+    }
+    
+    public Integer getRating() {
+        return rating;
     }
 
-    public String getStoryLine() {
-        return storyLine;
+    public List<Author> getAuthors() {
+        return authors;
+    }
+    
+    public void addAuthor(Author author) {
+        authors.add(author);
+    }
+    
+    public void setAuthors(List<Author> authors) {
+        this.authors.clear();
+        if (authors != null) {
+            this.authors.addAll(authors);
+        }
+    }
+
+    public List<Genre> getGenres() {
+        return genres;
+    }
+    
+    public void addGenre(Genre genre) {
+        genres.add(genre);
+    }
+    
+    public void setGenres(List<Genre> genres) {
+        this.genres.clear();
+        if (genres != null) {
+            this.genres.addAll(genres);
+        }
     }
 
     @Override
     public String toString() {
-        return title + ", " + isbn + ", " + published.toString();
+        return title + ", " + isbn + ", " + publisher;
     }
 }

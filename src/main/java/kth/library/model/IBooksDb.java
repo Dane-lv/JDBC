@@ -1,6 +1,7 @@
 package kth.library.model;
 
 import kth.library.model.exceptions.ConnectionException;
+import kth.library.model.exceptions.InsertException;
 import kth.library.model.exceptions.SelectException;
 
 import java.util.List;
@@ -33,5 +34,32 @@ public interface IBooksDb {
 
     List<Book> findBooksByIsbn(String isbn) throws SelectException;
     
-    // TODO: Add abstract methods for all inserts, deletes and queries mentioned in the assignment
+    List<Book> findBooksByAuthor(String author) throws SelectException;
+    
+    List<Book> findBooksByGenre(String genre) throws SelectException;
+    
+    List<Book> findBooksByRating(int rating) throws SelectException;
+    
+    void addBook(Book book) throws InsertException;
+    
+    /**
+     * Add an author to the database. 
+     * Note: If the author already exists, this method might throw an exception or handle it gracefully
+     * depending on implementation.
+     */
+    void addAuthor(Author author) throws InsertException;
+
+    /**
+     * Add a genre to the database.
+     */
+    void addGenre(Genre genre) throws InsertException;
+
+    /**
+     * Set or update the rating for a book.
+     */
+    void setRating(Book book, int rating) throws Exception; // Using Exception or a specific UpdateException if created
+    
+    // Helper methods to fetch available authors/genres for the "Add Book" dialog
+    List<Author> getAllAuthors() throws SelectException;
+    List<Genre> getAllGenres() throws SelectException;
 }
