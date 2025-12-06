@@ -3,7 +3,8 @@ package kth.library.model;
 import java.sql.Date;
 
 /**
- * Representation of an author.
+ * Represents an author in the library system.
+ * An author can have written multiple books.
  */
 public class Author {
     private final int authorId;

@@ -2,6 +2,7 @@ package kth.library.model;
 
 /**
  * Represents a user in the library system.
+ * A user can review and rate books, and can add books to the system.
  */
 public class User {
     private final int id;

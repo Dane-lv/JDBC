@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A MySQL implementation of the IBooksDb interface.
+ * Real implementation of IBooksDB that communicates with a MySQL database.
+ * Handles all SQL queries and transactions.
  */
 public class BooksDbImpl implements IBooksDb {
 

@@ -1,7 +1,8 @@
 package kth.library.model;
 
 /**
- * Representation of a genre.
+ * Represents a genre in the library system.
+ * A genre can be associated with multiple books.
  */
 public class Genre {
     private final int genreId;

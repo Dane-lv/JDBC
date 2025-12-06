@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Representation of a book.
+ * Represents a book in the library system.
+ * A book can have multiple authors and genres
+ * and can be reviewed by multiple users.
  */
 public class Book {
 

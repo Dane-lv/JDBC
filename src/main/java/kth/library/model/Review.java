@@ -3,7 +3,8 @@ package kth.library.model;
 import java.sql.Date;
 
 /**
- * Represents a review (rating + optional text) by a user for a book.
+ * Represents a review of a book by a user.
+ * Contains text content, the user who wrote it, and the date of the review.
  */
 public class Review {
     private final Book book;
