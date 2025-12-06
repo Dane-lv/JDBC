@@ -9,6 +9,7 @@ public class Author {
     private final int authorId;
     private final String name;
     private final Date birthdate;
+    private User addedBy; // New for VG
 
     public Author(int authorId, String name, Date birthdate) {
         this.authorId = authorId;
@@ -31,10 +32,17 @@ public class Author {
     public Date getBirthdate() {
         return birthdate;
     }
+    
+    public User getAddedBy() {
+        return addedBy;
+    }
+
+    public void setAddedBy(User addedBy) {
+        this.addedBy = addedBy;
+    }
 
     @Override
     public String toString() {
         return name;
     }
 }
-

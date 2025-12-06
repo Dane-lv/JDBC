@@ -9,14 +9,14 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Pair;
 import kth.library.model.Book;
 import kth.library.model.IBooksDb;
 import kth.library.model.SearchMode;
+import kth.library.model.Review;
 
-import java.sql.Date;
 import java.util.List;
 import java.util.Optional;
-
 
 /**
  * The main pane for the view, extending VBox and including the menus. An
@@ -35,7 +35,11 @@ public class BooksPane extends VBox {
 
     private MenuBar menuBar;
     
-    private MenuItem updateItem; // Need access to disable/enable or handle
+    private MenuItem addItem;
+    private MenuItem removeItem; // Not implemented but present in menu
+    private MenuItem updateItem; // Rate book
+    private MenuItem loginItem;
+    private MenuItem logoutItem;
 
     public BooksPane(IBooksDb booksDb) {
         final Controller controller = new Controller(booksDb, this);
@@ -59,10 +63,19 @@ public class BooksPane extends VBox {
      * @param msg  the message
      * @param type types: INFORMATION, WARNING et c.
      */
-    protected void showAlertAndWait(String msg, Alert.AlertType type) {
+    public void showAlertAndWait(String msg, Alert.AlertType type) {
         // types: INFORMATION, WARNING et c.
         Alert alert = new Alert(type, msg);
         alert.showAndWait();
+    }
+    
+    public void updateMenuState(boolean isLoggedIn) {
+        addItem.setDisable(!isLoggedIn);
+        removeItem.setDisable(!isLoggedIn);
+        updateItem.setDisable(!isLoggedIn); // Cannot rate if not logged in
+        
+        loginItem.setVisible(!isLoggedIn);
+        logoutItem.setVisible(isLoggedIn);
     }
 
     void init(Controller controller) {
@@ -97,18 +110,30 @@ public class BooksPane extends VBox {
         TableColumn<Book, String> titleCol = new TableColumn<>("Title");
         TableColumn<Book, String> isbnCol = new TableColumn<>("ISBN");
         TableColumn<Book, String> publisherCol = new TableColumn<>("Publisher");
-        TableColumn<Book, Integer> ratingCol = new TableColumn<>("Rating"); // Added Rating column
+        TableColumn<Book, Double> ratingCol = new TableColumn<>("Rating"); 
         
         booksTable.getColumns().addAll(titleCol, isbnCol, publisherCol, ratingCol);
         // give title column some extra space
         titleCol.prefWidthProperty().bind(booksTable.widthProperty().multiply(0.5));
 
-        // define how to fill data for each cell, 
-        // get values from Book properties
+        // define how to fill data for each cell
         titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
         isbnCol.setCellValueFactory(new PropertyValueFactory<>("isbn"));
         publisherCol.setCellValueFactory(new PropertyValueFactory<>("publisher"));
         ratingCol.setCellValueFactory(new PropertyValueFactory<>("rating"));
+        
+        // Format rating to 1 decimal
+        ratingCol.setCellFactory(tc -> new TableCell<Book, Double>() {
+            @Override
+            protected void updateItem(Double rating, boolean empty) {
+                super.updateItem(rating, empty);
+                if (empty || rating == null) {
+                    setText(null);
+                } else {
+                    setText(String.format("%.1f", rating));
+                }
+            }
+        });
 
         // associate the table view with the data
         booksTable.setItems(booksInTable);
@@ -134,11 +159,23 @@ public class BooksPane extends VBox {
 
         Menu fileMenu = new Menu("File");
         MenuItem exitItem = new MenuItem("Exit");
-        MenuItem connectItem = new MenuItem("Connect to Db");
-        MenuItem disconnectItem = new MenuItem("Disconnect");
-        fileMenu.getItems().addAll(exitItem, connectItem, disconnectItem);
+        MenuItem connectItem = new MenuItem("Connect to Db"); // Not hooked up yet
+        MenuItem disconnectItem = new MenuItem("Disconnect"); // Not hooked up yet
+        loginItem = new MenuItem("Log in");
+        logoutItem = new MenuItem("Log out");
+        
+        fileMenu.getItems().addAll(loginItem, logoutItem, new SeparatorMenuItem(), exitItem);
         
         exitItem.setOnAction(e -> System.exit(0));
+        
+        loginItem.setOnAction(e -> {
+            LoginDialog dialog = new LoginDialog();
+            Optional<Pair<String, String>> result = dialog.showAndWait();
+            result.ifPresent(creds -> controller.onLogin(creds.getKey(), creds.getValue()));
+        });
+        
+        logoutItem.setOnAction(e -> controller.onLogout());
+        logoutItem.setVisible(false); // Default hidden
 
         Menu searchMenu = new Menu("Search");
         MenuItem titleItem = new MenuItem("Title");
@@ -156,12 +193,16 @@ public class BooksPane extends VBox {
         ratingItem.setOnAction(e -> searchModeBox.setValue(SearchMode.Rating));
 
         Menu manageMenu = new Menu("Manage");
-        MenuItem addItem = new MenuItem("Add");
-        MenuItem removeItem = new MenuItem("Remove");
-        MenuItem updateItem = new MenuItem("Update Rating");
-        MenuItem detailsItem = new MenuItem("Show Details"); // Requirement D
+        addItem = new MenuItem("Add Book");
+        removeItem = new MenuItem("Remove Book");
+        updateItem = new MenuItem("Rate & Review");
+        MenuItem detailsItem = new MenuItem("Show Details"); 
         manageMenu.getItems().addAll(addItem, removeItem, updateItem, new SeparatorMenuItem(), detailsItem);
-        this.updateItem = updateItem;
+        
+        // Initial state: Disabled until login
+        addItem.setDisable(true);
+        removeItem.setDisable(true);
+        updateItem.setDisable(true);
 
         menuBar = new MenuBar();
         menuBar.getMenus().addAll(fileMenu, searchMenu, manageMenu);
@@ -179,31 +220,7 @@ public class BooksPane extends VBox {
         detailsItem.setOnAction(e -> {
             Book selected = booksTable.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                // Show details about authors and genres
-                StringBuilder sb = new StringBuilder();
-                sb.append("Title: ").append(selected.getTitle()).append("\n");
-                sb.append("ISBN: ").append(selected.getIsbn()).append("\n");
-                sb.append("Publisher: ").append(selected.getPublisher()).append("\n\n");
-                
-                sb.append("Authors:\n");
-                if (selected.getAuthors().isEmpty()) {
-                    sb.append(" - (None listed)\n");
-                } else {
-                    for (kth.library.model.Author a : selected.getAuthors()) {
-                        sb.append(" - ").append(a.getName()).append("\n");
-                    }
-                }
-                
-                sb.append("\nGenres:\n");
-                if (selected.getGenres().isEmpty()) {
-                    sb.append(" - (None listed)\n");
-                } else {
-                    for (kth.library.model.Genre g : selected.getGenres()) {
-                        sb.append(" - ").append(g.getName()).append("\n");
-                    }
-                }
-                
-                showAlertAndWait(sb.toString(), Alert.AlertType.INFORMATION);
+                showAlertAndWait(formatBookDetails(selected), Alert.AlertType.INFORMATION);
             } else {
                 showAlertAndWait("No book selected", Alert.AlertType.WARNING);
             }
@@ -212,6 +229,51 @@ public class BooksPane extends VBox {
         addItem.setOnAction(e -> {
             controller.onAddBookSelected();
         });
+    }
+    
+    private String formatBookDetails(Book book) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Title: ").append(book.getTitle()).append("\n");
+        sb.append("ISBN: ").append(book.getIsbn()).append("\n");
+        sb.append("Publisher: ").append(book.getPublisher()).append("\n");
+        sb.append("Added by: ").append(book.getAddedBy() != null ? book.getAddedBy().getUsername() : "Unknown").append("\n\n");
+        
+        sb.append("Authors:\n");
+        if (book.getAuthors().isEmpty()) {
+            sb.append(" - (None listed)\n");
+        } else {
+            for (kth.library.model.Author a : book.getAuthors()) {
+                sb.append(" - ").append(a.getName());
+                if (a.getAddedBy() != null) {
+                    sb.append(" (Added by: ").append(a.getAddedBy().getUsername()).append(")");
+                }
+                sb.append("\n");
+            }
+        }
+        
+        sb.append("\nGenres:\n");
+        if (book.getGenres().isEmpty()) {
+            sb.append(" - (None listed)\n");
+        } else {
+            for (kth.library.model.Genre g : book.getGenres()) {
+                sb.append(" - ").append(g.getName()).append("\n");
+            }
+        }
+        
+        sb.append("\nReviews:\n");
+        if (book.getReviews().isEmpty()) {
+            sb.append(" - No reviews yet.\n");
+        } else {
+            for (Review r : book.getReviews()) {
+                sb.append(" - ").append(r.toString());
+                if (r.getReviewText() != null && !r.getReviewText().isEmpty()) {
+                    sb.append("\n   \"").append(r.getReviewText()).append("\"\n");
+                } else {
+                    sb.append("\n");
+                }
+            }
+        }
+        return sb.toString();
     }
     
     public Book getSelectedBook() {

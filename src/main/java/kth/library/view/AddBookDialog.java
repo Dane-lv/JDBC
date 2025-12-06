@@ -76,7 +76,7 @@ public class AddBookDialog extends Dialog<Book> {
                     return null; // Validation failed (simplistic)
                 }
                 
-                Book newBook = new Book(isbn, title, publisher, null);
+                Book newBook = new Book(isbn, title, publisher);
                 newBook.setAuthors(new ArrayList<>(authorsListView.getSelectionModel().getSelectedItems()));
                 newBook.setGenres(new ArrayList<>(genresListView.getSelectionModel().getSelectedItems()));
                 return newBook;

@@ -12,7 +12,6 @@ import kth.library.model.exceptions.SelectException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A mock implementation of the IBooksDB interface to demonstrate how to
@@ -26,11 +25,14 @@ public class IBooksDbMockImpl implements IBooksDb {
     private final List<Book> books; // the mock "database"
     private final List<Author> authors; // mock authors
     private final List<Genre> genres; // mock genres
+    private final List<User> users; // mock users
 
     public IBooksDbMockImpl() {
         books = new ArrayList<>(Arrays.asList(DATA));
         authors = new ArrayList<>();
         genres = new ArrayList<>();
+        users = new ArrayList<>();
+        users.add(new User(1, "admin")); // Add a mock user
         setupMockData();
     }
     
@@ -69,6 +71,17 @@ public class IBooksDbMockImpl implements IBooksDb {
     @Override
     public void disconnect() throws ConnectionException {
         // mock implementation
+    }
+
+    @Override
+    public User login(String username, String password) throws SelectException {
+        // Mock login: accept any password for the mock user "admin"
+        for (User u : users) {
+            if (u.getUsername().equalsIgnoreCase(username)) {
+                return u;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -130,7 +143,7 @@ public class IBooksDbMockImpl implements IBooksDb {
     public List<Book> findBooksByRating(int rating) throws SelectException {
         List<Book> result = new ArrayList<>();
         for (Book book : books) {
-            if (book.getRating() != null && book.getRating() >= rating) {
+            if (book.getRating() >= rating) {
                 result.add(book);
             }
         }
@@ -153,18 +166,13 @@ public class IBooksDbMockImpl implements IBooksDb {
     }
 
     @Override
-    public void setRating(Book book, int rating) throws Exception {
-        // In a real DB, we would update the row. Here we just update the object.
-        // Since the book object passed might be a copy or from the list, we ideally find it in our list.
+    public void addReview(Book book, User user, int rating, String reviewText) throws InsertException {
+        // Find the book in our mock list and add the review
         for (Book b : books) {
             if (b.getBookId() == book.getBookId()) {
-                // We can't set rating directly on Book if it's final or no setter.
-                // Our Book class doesn't have a setRating method yet, but we can fake it or ignore for mock.
-                // Wait, Book needs to be mutable for the mock to reflect changes instantly in memory?
-                // Or we just say "done".
-                // The Book class fields are final. So we can't update the object in memory easily without replacing it.
-                // For now, we'll just print.
-                System.out.println("Mock: Set rating for " + b.getTitle() + " to " + rating);
+                // In a real app we'd create a Review object here, but for mock we might just print
+                // or actually adding it if Book is mutable and we want to test memory state
+                b.addReview(new Review(b, user, rating, reviewText, new java.sql.Date(System.currentTimeMillis())));
                 return;
             }
         }
@@ -181,14 +189,14 @@ public class IBooksDbMockImpl implements IBooksDb {
     }
 
     private static final Book[] DATA = {
-            new Book(1, "123456789", "Databases Illuminated", "Cathy Ricardo", 5),
-            new Book(2, "234567891", "Dark Databases", "Someone", 3),
-            new Book(3, "456789012", "The buried giant", "Kazuo Ishiguro", 4),
-            new Book(4, "567890123", "Never let me go", "Kazuo Ishiguro", 4),
-            new Book(5, "678901234", "The remains of the day", "Kazuo Ishiguro", 5),
-            new Book(6, "234567890", "Alias Grace", "Margaret Atwood", 3),
-            new Book(7, "345678911", "The handmaids tale", "Margaret Atwood", 4),
-            new Book(8, "345678901", "Shuggie Bain", "Douglas Stuart", 4),
-            new Book(9, "345678912", "Microserfs", "Douglas Coupland", 3),
+            new Book(1, "123456789", "Databases Illuminated", "Cathy Ricardo"),
+            new Book(2, "234567891", "Dark Databases", "Someone"),
+            new Book(3, "456789012", "The buried giant", "Kazuo Ishiguro"),
+            new Book(4, "567890123", "Never let me go", "Kazuo Ishiguro"),
+            new Book(5, "678901234", "The remains of the day", "Kazuo Ishiguro"),
+            new Book(6, "234567890", "Alias Grace", "Margaret Atwood"),
+            new Book(7, "345678911", "The handmaids tale", "Margaret Atwood"),
+            new Book(8, "345678901", "Shuggie Bain", "Douglas Stuart"),
+            new Book(9, "345678912", "Microserfs", "Douglas Coupland"),
     };
 }

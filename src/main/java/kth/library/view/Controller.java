@@ -2,14 +2,13 @@ package kth.library.view;
 
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
-import javafx.scene.control.ChoiceDialog;
-import javafx.scene.control.TextInputDialog;
+import javafx.util.Pair;
 import kth.library.model.Book;
 import kth.library.model.IBooksDb;
 import kth.library.model.SearchMode;
+import kth.library.model.User;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,10 +24,44 @@ public class Controller {
 
     private final BooksPane booksView; // view
     private final IBooksDb booksDb; // model
+    private User currentUser; // The currently logged in user (null if anonymous)
 
     public Controller(IBooksDb booksDb, BooksPane booksView) {
         this.booksDb = booksDb;
         this.booksView = booksView;
+    }
+    
+    public boolean isLoggedIn() {
+        return currentUser != null;
+    }
+    
+    public User getCurrentUser() {
+        return currentUser;
+    }
+
+    protected void onLogin(String username, String password) {
+        new Thread(() -> {
+            try {
+                User user = booksDb.login(username, password);
+                Platform.runLater(() -> {
+                    if (user != null) {
+                        currentUser = user;
+                        booksView.showAlertAndWait("Welcome " + user.getUsername(), INFORMATION);
+                        booksView.updateMenuState(true);
+                    } else {
+                        booksView.showAlertAndWait("Login failed. Wrong username or password.", ERROR);
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> booksView.showAlertAndWait("Login error: " + e.getMessage(), ERROR));
+            }
+        }).start();
+    }
+    
+    protected void onLogout() {
+        currentUser = null;
+        booksView.updateMenuState(false);
+        booksView.showAlertAndWait("You have been logged out.", INFORMATION);
     }
 
     protected void onSearchSelected(String searchFor, SearchMode mode) {
@@ -80,29 +113,35 @@ public class Controller {
     }
     
     protected void onRateBookSelected(Book book) {
-        List<Integer> choices = Arrays.asList(1, 2, 3, 4, 5);
-        ChoiceDialog<Integer> dialog = new ChoiceDialog<>(book.getRating() != null ? book.getRating() : 3, choices);
-        dialog.setTitle("Rate Book");
-        dialog.setHeaderText("Set rating for: " + book.getTitle());
-        dialog.setContentText("Choose rating:");
+        if (currentUser == null) {
+            booksView.showAlertAndWait("You must be logged in to rate books.", WARNING);
+            return;
+        }
 
-        Optional<Integer> result = dialog.showAndWait();
-        result.ifPresent(rating -> {
+        ReviewDialog dialog = new ReviewDialog(book.getTitle());
+        Optional<Pair<Integer, String>> result = dialog.showAndWait();
+        
+        result.ifPresent(review -> {
             new Thread(() -> {
                 try {
-                    booksDb.setRating(book, rating);
+                    booksDb.addReview(book, currentUser, review.getKey(), review.getValue());
                     Platform.runLater(() -> {
-                        booksView.showAlertAndWait("Rating updated!", INFORMATION);
-                        // Ideally refresh the view or update the book object in the list
+                        booksView.showAlertAndWait("Review added!", INFORMATION);
+                        // Refresh view if needed?
                     });
                 } catch (Exception e) {
-                    Platform.runLater(() -> booksView.showAlertAndWait("Error updating rating: " + e.getMessage(), ERROR));
+                    Platform.runLater(() -> booksView.showAlertAndWait("Error adding review: " + e.getMessage(), ERROR));
                 }
             }).start();
         });
     }
     
     protected void onAddBookSelected() {
+        if (currentUser == null) {
+            booksView.showAlertAndWait("You must be logged in to add books.", WARNING);
+            return;
+        }
+    
         new Thread(() -> {
             try {
                 // Fetch available authors and genres first
@@ -114,6 +153,16 @@ public class Controller {
                     Optional<Book> result = dialog.showAndWait();
                     
                     result.ifPresent(newBook -> {
+                        // Set the user who is adding the book
+                        newBook.setAddedBy(currentUser);
+                        
+                        // Note: The dialog creates Author objects, but those are "existing" authors selected from list?
+                        // Wait, if AddBookDialog allows creating NEW authors, we need to handle that.
+                        // The requirement says "Only give possibility to add already known authors".
+                        // So authors are selected from the list. No new authors created here.
+                        // But what about the author object? It needs to be valid.
+                        // Assuming AddBookDialog returns Book with valid Author objects from the list.
+                        
                         new Thread(() -> {
                             try {
                                 booksDb.addBook(newBook);

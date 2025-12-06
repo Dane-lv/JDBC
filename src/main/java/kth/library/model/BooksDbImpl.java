@@ -17,6 +17,10 @@ public class BooksDbImpl implements IBooksDb {
     private static final String JDBC_DRIVER = "com.mysql.cj.jdbc.Driver";
     private static final String USER = "library_client";
     private static final String PASSWORD = "lib123";
+    
+    // Common Base Query for books including user info
+    private static final String SELECT_BOOKS_BASE = 
+        "SELECT b.*, u.username as added_by_username FROM T_Book b LEFT JOIN T_User u ON b.added_by = u.user_id ";
 
     public BooksDbImpl() {
         try {
@@ -49,7 +53,42 @@ public class BooksDbImpl implements IBooksDb {
             throw new ConnectionException("Could not disconnect from database.", e);
         }
     }
+
+    @Override
+    public User login(String username, String password) throws SelectException {
+        String sql = "SELECT user_id, username FROM T_User WHERE username = ? AND password = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return new User(rs.getInt("user_id"), rs.getString("username"));
+                }
+            }
+            return null;
+        } catch (SQLException e) {
+            throw new SelectException("Error logging in user: " + username, e);
+        }
+    }
     
+    // --- Helper interface and method for executing search queries ---
+    
+    @FunctionalInterface
+    private interface StatementPreparer {
+        void prepare(PreparedStatement stmt) throws SQLException;
+    }
+
+    private List<Book> executeSearch(String sql, StatementPreparer preparer, String errorMessage) throws SelectException {
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            preparer.prepare(stmt);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return mapBooks(rs);
+            }
+        } catch (SQLException e) {
+            throw new SelectException(errorMessage, e);
+        }
+    }
+
     // --- Helper method to map ResultSet to Book list ---
     private List<Book> mapBooks(ResultSet rs) throws SQLException, SelectException {
         List<Book> books = new ArrayList<>();
@@ -58,19 +97,20 @@ public class BooksDbImpl implements IBooksDb {
             String isbn = rs.getString("isbn");
             String title = rs.getString("title");
             String publisher = rs.getString("publisher");
-            // rating can be null
-            int ratingVal = rs.getInt("rating");
-            Integer rating = rs.wasNull() ? null : ratingVal;
             
-            Book book = new Book(id, isbn, title, publisher, rating);
-            // We need to populate authors and genres for this book.
-            // In a real app with many rows, we might want to do this eagerly with JOINs 
-            // or lazily. For this assignment, let's fetch them separately or use a JOIN query initially.
-            // The current structure of the loop implies we already executed a query.
-            // If the query was simple (SELECT * FROM T_Book), we need to fetch authors/genres now.
+            Book book = new Book(id, isbn, title, publisher);
             
+            // Set Added By User if present
+            int userId = rs.getInt("added_by"); // 0 if null
+            if (!rs.wasNull()) {
+                String username = rs.getString("added_by_username"); // Alias used in queries
+                book.setAddedBy(new User(userId, username));
+            }
+
+            // Fetch related data
             fetchAuthorsForBook(book);
             fetchGenresForBook(book);
+            fetchReviewsForBook(book);
             
             books.add(book);
         }
@@ -78,8 +118,10 @@ public class BooksDbImpl implements IBooksDb {
     }
     
     private void fetchAuthorsForBook(Book book) throws SQLException {
-        String sql = "SELECT a.author_id, a.name, a.birthdate FROM T_Author a " +
+        String sql = "SELECT a.author_id, a.name, a.birthdate, a.added_by, u.username as added_by_username " +
+                     "FROM T_Author a " +
                      "JOIN T_Book_Author ba ON a.author_id = ba.author_id " +
+                     "LEFT JOIN T_User u ON a.added_by = u.user_id " +
                      "WHERE ba.book_id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, book.getBookId());
@@ -88,7 +130,14 @@ public class BooksDbImpl implements IBooksDb {
                     int id = rs.getInt("author_id");
                     String name = rs.getString("name");
                     Date birthDate = rs.getDate("birthdate");
-                    book.addAuthor(new Author(id, name, birthDate));
+                    Author author = new Author(id, name, birthDate);
+                    
+                    int userId = rs.getInt("added_by");
+                    if (!rs.wasNull()) {
+                        author.setAddedBy(new User(userId, rs.getString("added_by_username")));
+                    }
+                    
+                    book.addAuthor(author);
                 }
             }
         }
@@ -109,98 +158,89 @@ public class BooksDbImpl implements IBooksDb {
             }
         }
     }
+    
+    private void fetchReviewsForBook(Book book) throws SQLException {
+        String sql = "SELECT r.rating, r.review_text, r.review_date, r.user_id, u.username " +
+                     "FROM T_Review r " +
+                     "JOIN T_User u ON r.user_id = u.user_id " +
+                     "WHERE r.book_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, book.getBookId());
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    int rating = rs.getInt("rating");
+                    String text = rs.getString("review_text");
+                    Date date = rs.getDate("review_date");
+                    User user = new User(rs.getInt("user_id"), rs.getString("username"));
+                    book.addReview(new Review(book, user, rating, text, date));
+                }
+            }
+        }
+    }
 
     @Override
     public List<Book> findBooksByTitle(String title) throws SelectException {
-        String sql = "SELECT * FROM T_Book WHERE title LIKE ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, "%" + title + "%");
-            try (ResultSet rs = stmt.executeQuery()) {
-                return mapBooks(rs);
-            }
-        } catch (SQLException e) {
-            throw new SelectException("Error finding books by title: " + title, e);
-        }
+        String sql = SELECT_BOOKS_BASE + "WHERE b.title LIKE ?";
+        return executeSearch(sql, stmt -> stmt.setString(1, "%" + title + "%"), "Error finding books by title: " + title);
     }
 
     @Override
     public List<Book> findBooksByIsbn(String isbn) throws SelectException {
-        String sql = "SELECT * FROM T_Book WHERE isbn = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, isbn.trim()); // Trim whitespace
-            try (ResultSet rs = stmt.executeQuery()) {
-                return mapBooks(rs);
-            }
-        } catch (SQLException e) {
-            throw new SelectException("Error finding books by ISBN: " + isbn, e);
-        }
+        String sql = SELECT_BOOKS_BASE + "WHERE b.isbn = ?";
+        return executeSearch(sql, stmt -> stmt.setString(1, isbn.trim()), "Error finding books by ISBN: " + isbn);
     }
 
     @Override
     public List<Book> findBooksByAuthor(String author) throws SelectException {
-        String sql = "SELECT DISTINCT b.* FROM T_Book b " +
+        String sql = "SELECT DISTINCT b.*, u.username as added_by_username FROM T_Book b " +
+                     "LEFT JOIN T_User u ON b.added_by = u.user_id " +
                      "JOIN T_Book_Author ba ON b.book_id = ba.book_id " +
                      "JOIN T_Author a ON ba.author_id = a.author_id " +
                      "WHERE a.name LIKE ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, "%" + author + "%");
-            try (ResultSet rs = stmt.executeQuery()) {
-                return mapBooks(rs);
-            }
-        } catch (SQLException e) {
-            throw new SelectException("Error finding books by author: " + author, e);
-        }
+        return executeSearch(sql, stmt -> stmt.setString(1, "%" + author + "%"), "Error finding books by author: " + author);
     }
 
     @Override
     public List<Book> findBooksByGenre(String genre) throws SelectException {
-        String sql = "SELECT DISTINCT b.* FROM T_Book b " +
+        String sql = "SELECT DISTINCT b.*, u.username as added_by_username FROM T_Book b " +
+                     "LEFT JOIN T_User u ON b.added_by = u.user_id " +
                      "JOIN T_Book_Genre bg ON b.book_id = bg.book_id " +
                      "JOIN T_Genre g ON bg.genre_id = g.genre_id " +
                      "WHERE g.name = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, genre);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return mapBooks(rs);
-            }
-        } catch (SQLException e) {
-            throw new SelectException("Error finding books by genre: " + genre, e);
-        }
+        return executeSearch(sql, stmt -> stmt.setString(1, genre), "Error finding books by genre: " + genre);
     }
 
     @Override
     public List<Book> findBooksByRating(int rating) throws SelectException {
-        String sql = "SELECT * FROM T_Book WHERE rating >= ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setInt(1, rating);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return mapBooks(rs);
-            }
-        } catch (SQLException e) {
-            throw new SelectException("Error finding books by rating: " + rating, e);
-        }
+        String sql = "SELECT b.*, u.username as added_by_username FROM T_Book b " +
+                     "LEFT JOIN T_User u ON b.added_by = u.user_id " +
+                     "JOIN T_Review r ON b.book_id = r.book_id " +
+                     "GROUP BY b.book_id " +
+                     "HAVING AVG(r.rating) >= ?";
+        return executeSearch(sql, stmt -> stmt.setInt(1, rating), "Error finding books by rating: " + rating);
     }
 
     @Override
     public void addBook(Book book) throws InsertException {
-        String insertBookSql = "INSERT INTO T_Book (isbn, title, publisher, rating) VALUES (?, ?, ?, ?)";
+        String insertBookSql = "INSERT INTO T_Book (isbn, title, publisher, added_by) VALUES (?, ?, ?, ?)";
         String insertAuthorRelSql = "INSERT INTO T_Book_Author (book_id, author_id) VALUES (?, ?)";
         String insertGenreRelSql = "INSERT INTO T_Book_Genre (book_id, genre_id) VALUES (?, ?)";
         
         try {
-            connection.setAutoCommit(false); // Start transaction
+            connection.setAutoCommit(false);
             
-            // 1. Insert Book
             int bookId;
             try (PreparedStatement stmt = connection.prepareStatement(insertBookSql, Statement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, book.getIsbn());
                 stmt.setString(2, book.getTitle());
                 stmt.setString(3, book.getPublisher());
-                if (book.getRating() == null) {
-                    stmt.setNull(4, Types.INTEGER);
+                
+                if (book.getAddedBy() != null) {
+                    stmt.setInt(4, book.getAddedBy().getId());
                 } else {
-                    stmt.setInt(4, book.getRating());
+                    stmt.setNull(4, Types.INTEGER);
                 }
+                
                 stmt.executeUpdate();
                 
                 try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
@@ -212,9 +252,7 @@ public class BooksDbImpl implements IBooksDb {
                 }
             }
             
-            // 2. Insert Authors (assuming they exist, based on assignment prompt "Add books... with author specified")
-            // The prompt B says "Only give possibility to add already known authors".
-            // So we assume book.getAuthors() contains Authors with valid IDs.
+            // Insert Author Relations
             try (PreparedStatement stmt = connection.prepareStatement(insertAuthorRelSql)) {
                 for (Author author : book.getAuthors()) {
                     stmt.setInt(1, bookId);
@@ -223,7 +261,7 @@ public class BooksDbImpl implements IBooksDb {
                 }
             }
             
-            // 3. Insert Genres (assuming they exist)
+            // Insert Genre Relations
             try (PreparedStatement stmt = connection.prepareStatement(insertGenreRelSql)) {
                 for (Genre genre : book.getGenres()) {
                     stmt.setInt(1, bookId);
@@ -232,30 +270,37 @@ public class BooksDbImpl implements IBooksDb {
                 }
             }
             
-            connection.commit(); // Commit transaction
+            connection.commit();
             
         } catch (SQLException e) {
             try {
                 connection.rollback();
             } catch (SQLException ex) {
-                // Log or ignore
+                // Ignore rollback error
             }
             throw new InsertException("Error adding book: " + book.getTitle(), e);
         } finally {
             try {
                 connection.setAutoCommit(true);
             } catch (SQLException e) {
-                // ignore
+                // Ignore
             }
         }
     }
 
     @Override
     public void addAuthor(Author author) throws InsertException {
-        String sql = "INSERT INTO T_Author (name, birthdate) VALUES (?, ?)";
+        String sql = "INSERT INTO T_Author (name, birthdate, added_by) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, author.getName());
             stmt.setDate(2, author.getBirthdate());
+            
+            if (author.getAddedBy() != null) {
+                stmt.setInt(3, author.getAddedBy().getId());
+            } else {
+                stmt.setNull(3, Types.INTEGER);
+            }
+            
             stmt.executeUpdate();
         } catch (SQLException e) {
             throw new InsertException("Error adding author: " + author.getName(), e);
@@ -274,15 +319,20 @@ public class BooksDbImpl implements IBooksDb {
     }
 
     @Override
-    public void setRating(Book book, int rating) throws Exception {
-        String sql = "UPDATE T_Book SET rating = ? WHERE book_id = ?";
+    public void addReview(Book book, User user, int rating, String reviewText) throws InsertException {
+        String sql = "INSERT INTO T_Review (book_id, user_id, rating, review_text, review_date) VALUES (?, ?, ?, ?, CURRENT_DATE)";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setInt(1, rating);
-            stmt.setInt(2, book.getBookId());
+            stmt.setInt(1, book.getBookId());
+            stmt.setInt(2, user.getId());
+            stmt.setInt(3, rating);
+            if (reviewText != null) {
+                stmt.setString(4, reviewText);
+            } else {
+                stmt.setNull(4, Types.VARCHAR);
+            }
             stmt.executeUpdate();
         } catch (SQLException e) {
-            // Could wrap in specific UpdateException if defined
-            throw new Exception("Error updating rating for bookId: " + book.getBookId(), e);
+            throw new InsertException("Error adding review for book: " + book.getTitle(), e);
         }
     }
 
@@ -316,4 +366,3 @@ public class BooksDbImpl implements IBooksDb {
         }
     }
 }
-

@@ -30,6 +30,12 @@ public interface IBooksDb {
     
     void disconnect() throws ConnectionException;
     
+    /**
+     * Login a user.
+     * @return User object if successful, null if not found/wrong password.
+     */
+    User login(String username, String password) throws SelectException;
+    
     List<Book> findBooksByTitle(String title) throws SelectException;
 
     List<Book> findBooksByIsbn(String isbn) throws SelectException;
@@ -40,12 +46,14 @@ public interface IBooksDb {
     
     List<Book> findBooksByRating(int rating) throws SelectException;
     
+    /**
+     * Add a book. The book object should have the addedBy field set if a user is logged in.
+     */
     void addBook(Book book) throws InsertException;
     
     /**
      * Add an author to the database. 
-     * Note: If the author already exists, this method might throw an exception or handle it gracefully
-     * depending on implementation.
+     * The author object should have the addedBy field set if a user is logged in.
      */
     void addAuthor(Author author) throws InsertException;
 
@@ -55,9 +63,9 @@ public interface IBooksDb {
     void addGenre(Genre genre) throws InsertException;
 
     /**
-     * Set or update the rating for a book.
+     * Add a review (rating + text) for a book by a user.
      */
-    void setRating(Book book, int rating) throws Exception; // Using Exception or a specific UpdateException if created
+    void addReview(Book book, User user, int rating, String reviewText) throws InsertException;
     
     // Helper methods to fetch available authors/genres for the "Add Book" dialog
     List<Author> getAllAuthors() throws SelectException;
