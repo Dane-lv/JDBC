@@ -229,6 +229,10 @@ public class BooksPane extends VBox {
         addItem.setOnAction(e -> {
             controller.onAddBookSelected();
         });
+        
+        removeItem.setOnAction(e -> {
+            controller.onRemoveBookSelected();
+        });
     }
     
     private String formatBookDetails(Book book) {

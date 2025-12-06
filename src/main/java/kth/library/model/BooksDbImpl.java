@@ -366,4 +366,18 @@ public class BooksDbImpl implements IBooksDb {
             throw new SelectException("Error fetching all genres", e);
         }
     }
+
+    @Override
+    public void removeBook(Book book) throws Exception {
+        String sql = "DELETE FROM T_Book WHERE book_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, book.getBookId());
+            int rows = stmt.executeUpdate();
+            if (rows == 0) {
+                throw new Exception("Book not found");
+            }
+        } catch (SQLException e) {
+            throw new Exception("Could not remove book", e);
+        }
+    }
 }

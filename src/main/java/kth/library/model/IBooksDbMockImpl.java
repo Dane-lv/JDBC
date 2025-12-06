@@ -188,6 +188,11 @@ public class IBooksDbMockImpl implements IBooksDb {
         return new ArrayList<>(genres);
     }
 
+    @Override
+    public void removeBook(Book book) throws Exception {
+        
+    }
+
     private static final Book[] DATA = {
             new Book(1, "123456789", "Databases Illuminated", "Cathy Ricardo"),
             new Book(2, "234567891", "Dark Databases", "Someone"),

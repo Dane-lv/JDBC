@@ -180,4 +180,30 @@ public class Controller {
             }
         }).start();
     }
+
+    protected void onRemoveBookSelected() {
+        if (currentUser == null) {
+            booksView.showAlertAndWait("You must be logged in to remove books.", WARNING);
+            return;
+        }
+
+        Book selected = booksView.getSelectedBook();
+        if (selected == null) {
+            booksView.showAlertAndWait("No book selected", WARNING);
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                booksDb.removeBook(selected);
+                Platform.runLater(() -> {
+                    booksView.showAlertAndWait("Book removed", INFORMATION);
+                    // Trigger a re-search or refresh (not fully implemented in view yet, but logic is sound)
+                    // For now user has to search again to see it gone
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> booksView.showAlertAndWait("Error: " + e.getMessage(), ERROR));
+            }
+        }).start();
+    }
 }

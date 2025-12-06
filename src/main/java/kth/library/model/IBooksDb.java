@@ -70,4 +70,9 @@ public interface IBooksDb {
     // Helper methods to fetch available authors/genres for the "Add Book" dialog
     List<Author> getAllAuthors() throws SelectException;
     List<Genre> getAllGenres() throws SelectException;
+
+    /**
+     * Remove a book from the database.
+     */
+    void removeBook(Book book) throws Exception;
 }
