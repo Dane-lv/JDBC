@@ -71,7 +71,7 @@ public class Controller {
                     List<Book> result = null;
                     switch (mode) {
                         case Title:
-                            result = booksDb.findBooksByTitle(searchFor);
+                            result = booksDb.findBooksByTitle(searchFor );
                             break;
                         case ISBN:
                             result = booksDb.findBooksByIsbn(searchFor);

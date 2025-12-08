@@ -68,12 +68,12 @@ public class AddBookDialog extends Dialog<Book> {
         // Convert the result to a book-object when the add button is clicked.
         this.setResultConverter(dialogButton -> {
             if (dialogButton == loginButtonType) {
-                String isbn = isbnField.getText();
+                String isbn = isbnField.getText();  
                 String title = titleField.getText();
                 String publisher = publisherField.getText();
                 
                 if (isbn.isEmpty() || title.isEmpty() || publisher.isEmpty()) {
-                    return null; // Validation failed (simplistic)
+                    return null; 
                 }
                 
                 Book newBook = new Book(isbn, title, publisher);

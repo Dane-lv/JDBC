@@ -242,7 +242,7 @@ public class BooksDbImpl implements IBooksDb {
                     stmt.setNull(4, Types.INTEGER);
                 }
                 
-                stmt.executeUpdate();
+                stmt.executeUpdate(); // for INSERT, UPDATE, DELETE
                 
                 try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
@@ -291,32 +291,12 @@ public class BooksDbImpl implements IBooksDb {
 
     @Override
     public void addAuthor(Author author) throws InsertException {
-        String sql = "INSERT INTO T_Author (name, birthdate, added_by) VALUES (?, ?, ?)";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, author.getName());
-            stmt.setDate(2, author.getBirthdate());
-            
-            if (author.getAddedBy() != null) {
-                stmt.setInt(3, author.getAddedBy().getId());
-            } else {
-                stmt.setNull(3, Types.INTEGER);
-            }
-            
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            throw new InsertException("Error adding author: " + author.getName(), e);
-        }
+        
     }
 
     @Override
     public void addGenre(Genre genre) throws InsertException {
-        String sql = "INSERT INTO T_Genre (name) VALUES (?)";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, genre.getName());
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            throw new InsertException("Error adding genre: " + genre.getName(), e);
-        }
+        
     }
 
     @Override

@@ -15,8 +15,8 @@ public class Book {
     private final String title;
     private final String publisher;
     
-    // New fields for VG
-    private User addedBy; // Can be null if unknown or user deleted
+
+    private User addedBy; 
     private final List<Review> reviews;
     
     private final List<Author> authors;
